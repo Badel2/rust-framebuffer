@@ -1,20 +1,18 @@
 extern crate framebuffer;
 
-use framebuffer::{KdMode, Framebuffer};
+use framebuffer::Framebuffer;
 
 fn main() {
     let mut framebuffer = Framebuffer::new("/dev/fb0").unwrap();
 
-    let w = framebuffer.var_screen_info.xres as usize;
-    let h = framebuffer.var_screen_info.yres as usize;
+    let (w, h) = framebuffer.resolution();
+    let (w, h) = (w as usize, h as usize);
     let line_length = framebuffer.fix_screen_info.line_length as usize;
     let bytespp = (framebuffer.var_screen_info.bits_per_pixel / 8) as usize;
 
-    let mut frame = vec![0u8; line_length * h];
+    let mut frame = vec![0u8; framebuffer.frame_length()];
 
-    let _ = Framebuffer::set_kd_mode(KdMode::Graphics).unwrap();
-    
-    let half_line = w * bytespp / 2;
+    let half_line = w as usize * bytespp / 2;
     frame[half_line] = 255; 
     frame[half_line + 1] = 255; 
     frame[half_line + 2] = 255; 
@@ -36,6 +34,4 @@ fn main() {
     }
 
     let _ = framebuffer.write_frame(&frame);
-    let _ = std::io::stdin().read_line(&mut String::new());
-    let _ = Framebuffer::set_kd_mode(KdMode::Text).unwrap();
 }

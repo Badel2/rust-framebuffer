@@ -11,16 +11,13 @@ use std::io::Write;
 use std::fs::{OpenOptions, File};
 use std::os::unix::io::AsRawFd;
 use std::error::Error;
+use std::mem;
 
 use memmap::{Mmap, Protection};
 
 const FBIOGET_VSCREENINFO: libc::c_ulong = 0x4600;
 const FBIOPUT_VSCREENINFO: libc::c_ulong = 0x4601;
 const FBIOGET_FSCREENINFO: libc::c_ulong = 0x4602;
-
-const KDSETMODE: libc::c_ulong = 0x4B3A;
-const KD_TEXT: libc::c_ulong = 0x00;
-const KD_GRAPHICS: libc::c_ulong = 0x01;
 
 ///Bitfield which is a part of VarScreeninfo.
 #[repr(C)]
@@ -101,12 +98,6 @@ impl ::std::default::Default for FixScreeninfo {
     fn default() -> Self { unsafe { ::std::mem::zeroed() } }
 }
 
-///Enum that can be used to set the current KdMode.
-pub enum KdMode {
-    Graphics = KD_GRAPHICS as isize,
-    Text = KD_TEXT as isize,
-}
-
 ///Kind of errors that can occur when dealing with the Framebuffer.
 #[derive(Debug)]
 pub enum FramebufferErrorKind {
@@ -157,8 +148,8 @@ impl Framebuffer {
     pub fn new(path_to_device: &str) -> Result<Framebuffer, FramebufferError> {
         let device = try!(OpenOptions::new().read(true).write(true).open(path_to_device));
 
-        let var_screen_info = try!(Framebuffer::get_var_screeninfo(&device));
-        let fix_screen_info = try!(Framebuffer::get_fix_screeninfo(&device));
+        let var_screen_info = try!(Framebuffer::get_var_screen_info(&device));
+        let fix_screen_info = try!(Framebuffer::get_fix_screen_info(&device));
 
         let frame_length = (fix_screen_info.line_length * var_screen_info.yres) as usize;
         let frame = Mmap::open_with_offset(&device, Protection::ReadWrite, 0, frame_length);
@@ -180,42 +171,67 @@ impl Framebuffer {
     }
 
     ///Writes a frame to the Framebuffer.
-    pub fn write_frame(&mut self, frame: &[u8]) {
-        unsafe { self.frame.as_mut_slice() }.write_all(frame).unwrap();
+    pub fn write_frame<T>(&mut self, frame: &[T]) {
+        unsafe { 
+            let bytes = std::slice::from_raw_parts(frame.as_ptr() as *const u8, frame.len() * mem::size_of::<T>());
+            self.frame.as_mut_slice().write_all(bytes).unwrap();
+        }
+    }
+
+    pub fn frame<T>(&self) -> &[T] {
+        // returns a slice of the framebuffer frame: useful for screenshots
+        // however, "The caller must ensure that the file is not concurrently accessed."
+        unsafe {
+            let frame = self.frame.as_slice();
+            std::slice::from_raw_parts(frame.as_ptr() as * const T, frame.len() * mem::size_of::<u8>())
+        }
+    }
+
+    pub fn frame_mut<T>(&mut self) -> &mut [T] {
+        // returns a mutable slice of the framebuffer frame: useful for direct drawing
+        // "The caller must ensure that the file is not concurrently accessed."
+        unsafe {
+            let frame = self.frame.as_mut_slice();
+            std::slice::from_raw_parts_mut(frame.as_mut_ptr() as * mut T, frame.len() * mem::size_of::<u8>())
+        }
+    }
+
+    pub fn resolution(&self) -> (u32, u32) {
+        (self.var_screen_info.xres, self.var_screen_info.yres)
+    }
+
+    // returns the frame length in bytes
+    pub fn frame_length(&self) -> usize {
+        self.frame.len()
+    }
+
+    pub fn bits_per_pixel(&self) -> u32 {
+        self.var_screen_info.bits_per_pixel
     }
 
     ///Creates a FixScreeninfo struct and fills it using ioctl.
-    pub fn get_fix_screeninfo(device: &File) -> Result<FixScreeninfo, FramebufferError> {
+    fn get_fix_screen_info(device: &File) -> Result<FixScreeninfo, FramebufferError> {
         let mut info: FixScreeninfo = Default::default();
         let result = unsafe { ioctl(device.as_raw_fd(), FBIOGET_FSCREENINFO, &mut info) };
         match result {
-            -1 => Err(FramebufferError::new(FramebufferErrorKind::IoctlFailed, "Ioctl returned -1")),
+            -1 => Err(FramebufferError::new(FramebufferErrorKind::IoctlFailed, "Ioctl FBIOGET_FSCREENINFO returned -1")),
             _ => Ok(info),
         }
     }
 
     ///Creates a VarScreeninfo struct and fills it using ioctl.
-    pub fn get_var_screeninfo(device: &File) -> Result<VarScreeninfo, FramebufferError> {
+    fn get_var_screen_info(device: &File) -> Result<VarScreeninfo, FramebufferError> {
         let mut info: VarScreeninfo = Default::default();
         let result = unsafe { ioctl(device.as_raw_fd(), FBIOGET_VSCREENINFO, &mut info) };
         match result {
-            -1 => Err(FramebufferError::new(FramebufferErrorKind::IoctlFailed, "Ioctl returned -1")),
+            -1 => Err(FramebufferError::new(FramebufferErrorKind::IoctlFailed, "Ioctl FBIOGET_VSCREENINFO returned -1")),
             _ => Ok(info),
         }
     }
 
-    pub fn put_var_screeninfo(device: &File, screeninfo: &VarScreeninfo) -> Result<i32, FramebufferError> {
-        match unsafe { ioctl(device.as_raw_fd(), FBIOPUT_VSCREENINFO, &screeninfo) } {
-            -1 => Err(FramebufferError::new(FramebufferErrorKind::IoctlFailed, "Ioctl returned -1")),
-            ret => Ok(ret),
-        }
-    }
-
-    ///Sets the tty graphics mode. Make sure to change it back to KdMode::Text after the program is
-    ///done!
-    pub fn set_kd_mode(kd_mode: KdMode) -> Result<i32, FramebufferError> {
-        match unsafe { ioctl(0, KDSETMODE, kd_mode) } {
-            -1 => Err(FramebufferError::new(FramebufferErrorKind::IoctlFailed, "Ioctl returned - 1")),
+    pub fn put_var_screen_info(&self) -> Result<i32, FramebufferError> {
+        match unsafe { ioctl(self.device.as_raw_fd(), FBIOPUT_VSCREENINFO, &self.var_screen_info) } {
+            -1 => Err(FramebufferError::new(FramebufferErrorKind::IoctlFailed, "Ioctl FBIOPUT_VSCREENINFO returned -1 on write")),
             ret => Ok(ret),
         }
     }

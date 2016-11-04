@@ -11,7 +11,5 @@ To avoid having to run all commands as root, you can add yourself to the video g
 sudo usermod -aG video <username>
 ```
 
-Make sure to check out the starfield example as well!
-
 Basic documentation is available: http://roysten.github.io/rust-framebuffer/target/doc/framebuffer/.
 The documentation is a bit sparse, but I hope the examples can make up for that.

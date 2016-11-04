@@ -1,20 +1,17 @@
 extern crate framebuffer;
 
-use framebuffer::{KdMode, Framebuffer};
+use framebuffer::Framebuffer;
 
 //Algorithm copied from:
 //https://en.wikipedia.org/wiki/Mandelbrot_set
 fn main() {
     let mut framebuffer = Framebuffer::new("/dev/fb0").unwrap();
 
-    let w = framebuffer.var_screen_info.xres;
-    let h = framebuffer.var_screen_info.yres;
+    let (w, h) = framebuffer.resolution();
     let line_length = framebuffer.fix_screen_info.line_length;
     let bytespp = framebuffer.var_screen_info.bits_per_pixel / 8;
 
-    let mut frame = vec![0u8; (line_length * h) as usize];
-
-    let _ = Framebuffer::set_kd_mode(KdMode::Graphics).unwrap();
+    let mut frame = vec![0u8; framebuffer.frame_length()];
 
     for (r, line) in frame.chunks_mut(line_length as usize).enumerate() {
         for (c, p) in line.chunks_mut(bytespp as usize).enumerate() {
@@ -42,7 +39,4 @@ fn main() {
     }
 
     let _ = framebuffer.write_frame(&frame);
-
-    std::io::stdin().read_line(&mut String::new());
-    let _ = Framebuffer::set_kd_mode(KdMode::Text).unwrap();
 }

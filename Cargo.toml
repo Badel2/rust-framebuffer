@@ -1,6 +1,6 @@
 [package]
 name = "framebuffer"
-version = "0.1.4"
+version = "0.2.0"
 authors = ["Roy van der Vegt <royvandervegt@gmail.com>"]
 description = """
 Basic framebuffer abstraction. Handles the necessary ioctls and mmaps the framebuffer device.
@@ -14,16 +14,16 @@ name = "framebuffer"
 path = "src/lib.rs"
 
 [dependencies]
-libc = "0.2.2"
-memmap = "0.3.0"
+libc = "0.2.0"
+memmap = "0.5.0"
 
 [[example]]
 name = "rust-logo"
 path = "examples/rust-logo/main.rs"
 
 [[example]]
-name = "starfield"
-path = "examples/starfield/main.rs"
+name = "dust"
+path = "examples/dust/main.rs"
 
 [[example]]
 name = "mandelbrot"
@@ -33,6 +33,11 @@ path = "examples/mandelbrot/main.rs"
 name = "sierpinski"
 path = "examples/sierpinski/main.rs"
 
+[[example]]
+name = "tearing"
+path = "examples/tearing/main.rs"
+
 [dev_dependencies]
 bmp = "0.1.4"
 rand = "0.3.12"
+time = "*"
