@@ -197,7 +197,15 @@ impl Framebuffer {
     }
 
     pub fn resolution(&self) -> (u32, u32) {
-        (self.var_screen_info.xres, self.var_screen_info.yres)
+        (self.width(), self.height())
+    }
+
+    pub fn width(&self) -> u32 {
+        self.var_screen_info.xres
+    }
+
+    pub fn height(&self) -> u32 {
+        self.var_screen_info.yres
     }
 
     // returns the frame length in bytes
@@ -205,8 +213,8 @@ impl Framebuffer {
         self.frame.len()
     }
 
-    pub fn bits_per_pixel(&self) -> u32 {
-        self.var_screen_info.bits_per_pixel
+    pub fn bits_per_pixel(&self) -> usize {
+        self.var_screen_info.bits_per_pixel as usize
     }
 
     ///Creates a FixScreeninfo struct and fills it using ioctl.
