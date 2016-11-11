@@ -183,7 +183,8 @@ impl Framebuffer {
         // however, "The caller must ensure that the file is not concurrently accessed."
         unsafe {
             let frame = self.frame.as_slice();
-            std::slice::from_raw_parts(frame.as_ptr() as * const T, frame.len() * mem::size_of::<u8>())
+            // length is not number of bytes but number of elements
+            std::slice::from_raw_parts(frame.as_ptr() as * const T, frame.len() / mem::size_of::<T>())
         }
     }
 
@@ -192,7 +193,7 @@ impl Framebuffer {
         // "The caller must ensure that the file is not concurrently accessed."
         unsafe {
             let frame = self.frame.as_mut_slice();
-            std::slice::from_raw_parts_mut(frame.as_mut_ptr() as * mut T, frame.len() * mem::size_of::<u8>())
+            std::slice::from_raw_parts_mut(frame.as_mut_ptr() as * mut T, frame.len() / mem::size_of::<T>())
         }
     }
 
@@ -213,8 +214,8 @@ impl Framebuffer {
         self.frame.len()
     }
 
-    pub fn bits_per_pixel(&self) -> usize {
-        self.var_screen_info.bits_per_pixel as usize
+    pub fn bits_per_pixel(&self) -> u32 {
+        self.var_screen_info.bits_per_pixel
     }
 
     ///Creates a FixScreeninfo struct and fills it using ioctl.
